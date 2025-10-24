@@ -49,6 +49,10 @@ jobs:
         run: |
           sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
             sshpass -p 'forteai@12345' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
+            # Fix ownership & permissions
+              sudo chown -R ec2-user:ec2-user /home/ec2-user/forteai-nexus-backend
+              chmod -R u+rw /home/ec2-user/forteai-nexus-backend
+
               mkdir -p /home/ec2-user/forteai-nexus-backend &&
               rm -rf /home/ec2-user/forteai-nexus-backend/*
             '
