@@ -1,0 +1,59 @@
+name: Backend Deployment Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout the latest code
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Ensure sshpass is available
+      - name: Install sshpass (if not installed)
+        run: |
+          if ! command -v sshpass >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y sshpass
+          else
+            echo "sshpass already installed. Skipping..."
+          fi
+
+      # 3️⃣ Copy backend repo files from GitHub to Bastion
+      - name: Copy Backend Files to Bastion
+        run: |
+          sshpass -p 'forteai@123' scp -o StrictHostKeyChecking=no -r ./ ec2-user@52.66.158.199:/tmp/backend-deploy/
+
+      # 4️⃣ Copy files from Bastion to Backend EC2
+      - name: Copy Files from Bastion to Backend EC2
+        run: |
+          sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 \
+          "sshpass -p 'forteai@12345' scp -o StrictHostKeyChecking=no -r /tmp/backend-deploy/* ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/"
+
+      # 5️⃣ Install dependencies and restart the backend app
+      - name: Install Dependencies and Restart Backend
+        run: |
+          sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
+            sshpass -p 'forteai@12345' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
+              cd /home/ec2-user/forteai-nexus-backend &&
+              if [ ! -d node_modules ]; then
+                echo Installing dependencies...
+                npm install
+              else
+                echo Dependencies already installed.
+              fi &&
+              if pm2 list | grep -q forteai-backend; then
+                echo Restarting existing PM2 process...
+                pm2 restart forteai-backend
+              else
+                echo Starting new PM2 process...
+                pm2 start npm --name forteai-backend -- start
+              fi
+            '
+          "
