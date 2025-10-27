@@ -15,56 +15,79 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Install sshpass
-      - name: Install sshpass
+      # 2️⃣ Install sshpass and rsync
+      - name: Install sshpass and rsync
         run: |
-          sudo apt-get update
-          sudo apt-get install -y sshpass
+          sudo apt-get update -y
+          sudo apt-get install -y sshpass rsync
 
-      # 3️⃣ Copy backend files to Bastion 
+      # 3️⃣ Ensure Bastion deploy directory exists
+      - name: Prepare Bastion Directory
+        run: |
+          echo "Preparing Bastion directory..."
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
+            mkdir -p /tmp/backend-deploy
+            rm -rf /tmp/backend-deploy/*
+          "
+
+      # 4️⃣ Copy backend repo files to Bastion (excluding .git)
       - name: Copy Backend Files to Bastion
         run: |
-          echo "Transferring backend files to Bastion..."
-          sshpass -p "${{ secrets.BASTION_PASSWORD }}" scp -o StrictHostKeyChecking=no -r . ec2-user@${{ secrets.BASTION_HOST }}:/tmp/backend-deploy
+          echo "Copying files to Bastion..."
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" rsync -avz --exclude='.git' ./ ec2-user@52.66.158.199:/tmp/backend-deploy/ || {
+            echo "❌ Rsync failed — retrying..."
+            sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "mkdir -p /tmp/backend-deploy"
+            sshpass -p "${{ secrets.BASTION_PASSWORD }}" rsync -avz --exclude='.git' ./ ec2-user@52.66.158.199:/tmp/backend-deploy/
+          }
 
-      # 4️⃣ Copy backend files from Bastion → Backend EC2
-      - name: Transfer Files to Backend EC2
+      # 5️⃣ Copy files from Bastion to Backend EC2
+      - name: Copy Files from Bastion to Backend EC2
         run: |
-          echo "Moving files from Bastion to Backend EC2..."
-          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BASTION_HOST }} "
-            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BACKEND_HOST }} '
-              mkdir -p /home/ec2-user/forteai-nexus-backend &&
-              rm -rf /home/ec2-user/forteai-nexus-backend/* 
+          echo "Copying files from Bastion to Backend EC2..."
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
+            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
+              mkdir -p /home/ec2-user/forteai-nexus-backend
+              sudo chown -R ec2-user:ec2-user /home/ec2-user/forteai-nexus-backend
+              sudo chmod -R 755 /home/ec2-user/forteai-nexus-backend
+              rm -rf /home/ec2-user/forteai-nexus-backend/*
             '
-            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' scp -o StrictHostKeyChecking=no -r /tmp/backend-deploy/* ec2-user@${{ secrets.BACKEND_HOST }}:/home/ec2-user/forteai-nexus-backend/
+            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' rsync -avz /tmp/backend-deploy/ ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/
           "
 
-      # 5️⃣ Create .env file securely on backend EC2
-      - name: Create .env file on Backend Server
+      # 6️⃣ Create .env file on backend EC2
+      - name: Setup Environment File
         run: |
-          echo "Creating .env file on backend..."
-          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BASTION_HOST }} "
-            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BACKEND_HOST }} '
-              cd /home/ec2-user/forteai-nexus-backend &&
-              cat > .env <<EOF
-DB_HOST=${{ secrets.DB_HOST }}
-DB_USER=${{ secrets.DB_USER }}
-DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-DB_NAME=${{ secrets.DB_NAME }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-PORT=3000
-EOF
-            '
+          echo "Setting up .env file on backend..."
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
+            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' scp -o StrictHostKeyChecking=no /tmp/backend-deploy/.env ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/.env
           "
 
-      # 6️⃣ Install dependencies and start backend using npm
-      - name: Start Backend Application
+      # 7️⃣ Install dependencies & start backend using npm start
+      - name: Install Dependencies and Start Backend
         run: |
           echo "Installing dependencies and starting backend..."
-          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BASTION_HOST }} "
-            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BACKEND_HOST }} '
-              cd /home/ec2-user/forteai-nexus-backend &&
-              npm install &&
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
+            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
+              cd /home/ec2-user/forteai-nexus-backend
+
+              # Ensure Node.js is installed
+              if ! command -v node >/dev/null 2>&1; then
+                echo Installing Node.js...
+                curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
+                sudo yum install -y nodejs
+              fi
+
+              # Install dependencies
+              npm install
+
+              # Kill any existing process using the same port (optional cleanup)
+              if lsof -i:3000; then
+                echo "Killing existing process on port 3000..."
+                sudo lsof -t -i:3000 | xargs -r sudo kill -9
+              fi
+
+              # Start backend app in background
               nohup npm start > backend.log 2>&1 &
+              echo "Backend started successfully using npm start"
             '
           "
