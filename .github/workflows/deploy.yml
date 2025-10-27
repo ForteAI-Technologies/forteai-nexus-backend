@@ -25,7 +25,7 @@ jobs:
       - name: Prepare Bastion Directory
         run: |
           echo "Preparing Bastion directory..."
-          sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
             mkdir -p /tmp/backend-deploy
             rm -rf /tmp/backend-deploy/*
           "
@@ -34,39 +34,39 @@ jobs:
       - name: Copy Backend Files to Bastion
         run: |
           echo "Copying files to Bastion..."
-          sshpass -p 'forteai@123' rsync -avz --exclude='.git' ./ ec2-user@52.66.158.199:/tmp/backend-deploy/ || {
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" rsync -avz --exclude='.git' ./ ec2-user@52.66.158.199:/tmp/backend-deploy/ || {
             echo "❌ Rsync failed — retrying..."
-            sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "mkdir -p /tmp/backend-deploy"
-            sshpass -p 'forteai@123' rsync -avz --exclude='.git' ./ ec2-user@52.66.158.199:/tmp/backend-deploy/
+            sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "mkdir -p /tmp/backend-deploy"
+            sshpass -p "${{ secrets.BASTION_PASSWORD }}" rsync -avz --exclude='.git' ./ ec2-user@52.66.158.199:/tmp/backend-deploy/
           }
 
       # 5️⃣ Copy files from Bastion to Backend EC2
       - name: Copy Files from Bastion to Backend EC2
         run: |
-          sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
-            sshpass -p 'forteai@12345' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
+            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
               mkdir -p /home/ec2-user/forteai-nexus-backend
               sudo chown -R ec2-user:ec2-user /home/ec2-user/forteai-nexus-backend
               sudo chmod -R 755 /home/ec2-user/forteai-nexus-backend
               rm -rf /home/ec2-user/forteai-nexus-backend/*
             '
-            sshpass -p 'forteai@12345' rsync -avz /tmp/backend-deploy/ ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/
+            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' rsync -avz /tmp/backend-deploy/ ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/
           "
 
       # 6️⃣ Create .env file on backend EC2
       - name: Setup Environment File
         run: |
           echo "Setting up .env file on backend..."
-          sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
-            sshpass -p 'forteai@12345' scp -o StrictHostKeyChecking=no /tmp/backend-deploy/.env ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/.env
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
+            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' scp -o StrictHostKeyChecking=no /tmp/backend-deploy/.env ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/.env
           "
 
       # 7️⃣ Install dependencies & restart backend using PM2
       - name: Install Dependencies and Restart Backend
         run: |
           echo "Installing dependencies and restarting app..."
-          sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
-            sshpass -p 'forteai@12345' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
+            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
               cd /home/ec2-user/forteai-nexus-backend
               # Ensure Node.js & PM2 exist
               if ! command -v node >/dev/null 2>&1; then
