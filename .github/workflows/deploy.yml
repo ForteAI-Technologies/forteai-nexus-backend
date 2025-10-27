@@ -21,38 +21,46 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y sshpass
 
-      # 3️⃣ Copy backend files to Bastion
+      # 3️⃣ Copy backend files to Bastion (Fixed: removed wrong folder name)
       - name: Copy Backend Files to Bastion
         run: |
-          sshpass -p "${{ secrets.BASTION_PASSWORD }}" scp -o StrictHostKeyChecking=no -r forteai-nexus-backend ec2-user@${{ secrets.BASTION_HOST }}:/tmp/backend-deploy
+          echo "Transferring backend files to Bastion..."
+          sshpass -p "${{ secrets.BASTION_PASSWORD }}" scp -o StrictHostKeyChecking=no -r . ec2-user@${{ secrets.BASTION_HOST }}:/tmp/backend-deploy
 
       # 4️⃣ Copy backend files from Bastion → Backend EC2
       - name: Transfer Files to Backend EC2
         run: |
+          echo "Moving files from Bastion to Backend EC2..."
           sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BASTION_HOST }} "
+            sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BACKEND_HOST }} '
+              mkdir -p /home/ec2-user/forteai-nexus-backend &&
+              rm -rf /home/ec2-user/forteai-nexus-backend/* 
+            '
             sshpass -p '${{ secrets.BACKEND_PASSWORD }}' scp -o StrictHostKeyChecking=no -r /tmp/backend-deploy/* ec2-user@${{ secrets.BACKEND_HOST }}:/home/ec2-user/forteai-nexus-backend/
           "
 
       # 5️⃣ Create .env file securely on backend EC2
       - name: Create .env file on Backend Server
         run: |
+          echo "Creating .env file on backend..."
           sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BASTION_HOST }} "
             sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BACKEND_HOST }} '
               cd /home/ec2-user/forteai-nexus-backend &&
               cat > .env <<EOF
-              DB_HOST=${{ secrets.DB_HOST }}
-              DB_USER=${{ secrets.DB_USER }}
-              DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-              DB_NAME=${{ secrets.DB_NAME }}
-              JWT_SECRET=${{ secrets.JWT_SECRET }}
-              PORT=3000
-              EOF
+DB_HOST=${{ secrets.DB_HOST }}
+DB_USER=${{ secrets.DB_USER }}
+DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+DB_NAME=${{ secrets.DB_NAME }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+PORT=3000
+EOF
             '
           "
 
       # 6️⃣ Install dependencies and start backend using npm
       - name: Start Backend Application
         run: |
+          echo "Installing dependencies and starting backend..."
           sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BASTION_HOST }} "
             sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BACKEND_HOST }} '
               cd /home/ec2-user/forteai-nexus-backend &&
