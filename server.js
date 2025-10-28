@@ -7,6 +7,16 @@ const axios = require("axios");
 const XLSX = require("xlsx");
 require("dotenv").config();
 
+const axios = require('axios');
+
+async function getAI(prompt) {
+
+  const res = await axios.post('http://10.0.128.123:8000/generate', { prompt });
+
+  return res.data.response;
+
+}
+
 // Import middleware
 const authenticateAdmin = require("./middlewares/admin.auth");
 const { authenticateEmployee } = require("./middlewares/employee.auth");
