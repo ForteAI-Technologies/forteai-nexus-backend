@@ -77,14 +77,19 @@ jobs:
                 sudo yum install -y nodejs
               fi
 
-              # Install dependencies
-              npm install
+             # 🔹 Kill any existing Node.js process globally (safest cleanup)
+              echo "Stopping any running Node.js processes..."
+              sudo pkill -f "node" || true
+              sleep 3
 
               # Kill any existing process using the same port (optional cleanup)
               if lsof -i:3000; then
                 echo "Killing existing process on port 3000..."
                 sudo lsof -t -i:3000 | xargs -r sudo kill -9
               fi
+
+              # Install dependencies
+              npm install
 
               # Start backend app in background
               nohup npm start > backend.log 2>&1 &
