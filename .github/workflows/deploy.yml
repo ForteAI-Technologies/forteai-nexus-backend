@@ -61,7 +61,7 @@ jobs:
           sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
             sshpass -p '${{ secrets.BACKEND_PASSWORD }}' scp -o StrictHostKeyChecking=no /tmp/backend-deploy/.env ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/.env
           "
-
+          
      # 7️⃣ Install dependencies & start backend using npm start
       - name: Install Dependencies and Start Backend
         run: |
@@ -77,19 +77,14 @@ jobs:
                 sudo yum install -y nodejs
               fi
 
-             # 🔹 Kill any existing Node.js process globally (safest cleanup)
-              echo "Stopping any running Node.js processes..."
-              sudo pkill -f "node" || true
-              sleep 3
+              # Install dependencies
+              npm install
 
               # Kill any existing process using the same port (optional cleanup)
               if lsof -i:3000; then
                 echo "Killing existing process on port 3000..."
                 sudo lsof -t -i:3000 | xargs -r sudo kill -9
               fi
-
-              # Install dependencies
-              npm install
 
               # Start backend app in background
               nohup npm start > backend.log 2>&1 &
