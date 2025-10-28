@@ -69,25 +69,22 @@ jobs:
           sshpass -p "${{ secrets.BASTION_PASSWORD }}" ssh -o StrictHostKeyChecking=no ec2-user@52.66.158.199 "
             sshpass -p '${{ secrets.BACKEND_PASSWORD }}' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
               cd /home/ec2-user/forteai-nexus-backend
-
               # Ensure Node.js is installed
               if ! command -v node >/dev/null 2>&1; then
                 echo Installing Node.js...
                 curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
                 sudo yum install -y nodejs
               fi
-
+              # Ensure lsof is installed
+              sudo yum install -y lsof
+              # Kill any existing Node.js process
+              echo "Killing any existing Node.js processes..."
+              sudo pkill -f "node" || true
+              sleep 5
               # Install dependencies
               npm install
-
-              # Kill any existing process using the same port (optional cleanup)
-              if lsof -i:3000; then
-                echo "Killing existing process on port 3000..."
-                sudo lsof -t -i:3000 | xargs -r sudo kill -9
-              fi
-
               # Start backend app in background
               nohup npm start > backend.log 2>&1 &
-              echo "Backend started successfully using npm start"
+              echo "✅ Backend started successfully using npm start"
             '
           "
