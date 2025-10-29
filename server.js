@@ -7,7 +7,6 @@ const axios = require("axios");
 const XLSX = require("xlsx");
 require("dotenv").config();
 
-const axios = require('axios');
 
 async function getAI(prompt) {
 
