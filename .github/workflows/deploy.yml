@@ -27,4 +27,24 @@ jobs:
       - name: Copy Backend Files to Bastion
         run: |
           echo "Copying files to Bastion"
-          sshpa
+          sshpass -p 'forteai@123' rsync -avz --exclude='.git' --exclude='node_modules' --exclude='.env' ./ ec2-user@13.204.190.46:/tmp/backend-deploy/
+
+      - name: Copy Files to Backend Server
+        run: |
+          echo "Copying to Backend server"
+          sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'mkdir -p /home/ec2-user/forteai-nexus-backend && sudo chown -R ec2-user:ec2-user /home/ec2-user/forteai-nexus-backend && if [ -f /home/ec2-user/forteai-nexus-backend/.env ]; then cp /home/ec2-user/forteai-nexus-backend/.env /home/ec2-user/forteai-nexus-backend/.env.backup; fi && find /home/ec2-user/forteai-nexus-backend -mindepth 1 ! -name .env.backup -delete' && sshpass -p 'forteai@1234' rsync -avz /tmp/backend-deploy/ ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/"
+
+      - name: Create Environment File
+        run: |
+          echo "Creating .env file"
+          sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'cd /home/ec2-user/forteai-nexus-backend && echo \"DB_HOST=forte-ai-db.cpowuk2ao66s.ap-south-1.rds.amazonaws.com\" > .env && echo \"DB_USER=admin\" >> .env && echo \"DB_PASSWORD=8Q1ste85Mhf3\" >> .env && echo \"DB_NAME=forteai_employees\" >> .env && echo \"JWT_SECRET=forteai-super-secure-jwt-secret-key-2025\" >> .env && echo \"PORT=3000\" >> .env && echo \"FLASK_HOST=10.10.10.10\" >> .env && echo \"FLASK_PORT=5000\" >> .env && echo \"EMAIL_USER=forteaitechnologies@gmail.com\" >> .env && echo \"EMAIL_FROM=ForteAI Nexus System <forteaitechnologies@gmail.com>\" >> .env && echo \"EMAIL_APP_PASSWORD=kcfu sxka pgax gxbd\" >> .env && echo \"BACKEND_URL=https://nexus-backend.forteai.in\" >> .env && chmod 600 .env'"
+
+      - name: Deploy with PM2
+        run: |
+          echo "Deploying backend"
+          sshpass -p 'forteai@123' ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'cd /home/ec2-user/forteai-nexus-backend && if ! command -v node >/dev/null 2>&1; then curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash - && sudo yum install -y nodejs; fi && if ! command -v pm2 >/dev/null 2>&1; then sudo npm install -g pm2; fi && npm install --production && pm2 stop nexus-backend 2>/dev/null || true && pm2 delete nexus-backend 2>/dev/null || true && pm2 start server.js --name nexus-backend && pm2 save && pm2 status'"
+
+      - name: Verify Deployment
+        run: |
+          echo "Deployment completed"
+          echo "Backend: https://nexus-backend.forteai.in"
