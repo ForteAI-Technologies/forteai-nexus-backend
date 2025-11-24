@@ -15,7 +15,7 @@ module.exports = (pool) => {
   // Helper function to create JWT tokens
   const generateToken = (employee, expiresIn = "24h") => {
     return jwt.sign(
-      { employeesID: employee.employeesID, role: employee.role },
+      { employeesID: employee.employeesID, role: employee.role, company_id: employee.company_id },
       JWT_SECRET,
       { expiresIn }
     );
@@ -251,8 +251,10 @@ module.exports = (pool) => {
       }
 
       // Generate JWT token
+      console.log("🔍 Debug employee object:", JSON.stringify(employee, null, 2));
       const token = generateToken(employee);
 
+      console.log("🔍 Debug generated token payload:", JSON.parse(Buffer.from(token.split(".")[1], "base64").toString()));
       // Remove password from response
       const { password: _, ...employeeWithoutPassword } = employee;
 

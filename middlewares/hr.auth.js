@@ -1,10 +1,13 @@
 // HR role authentication middleware
 const jwt = require("jsonwebtoken");
-
 const authenticateHR = (req, res, next) => {
+  // Allow OPTIONS requests to pass through without authentication
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+  
   const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) return res.status(401).json({ success: false, message: "Access token required" });
-
   jwt.verify(
     token,
     process.env.JWT_SECRET || "your-secret-key",
@@ -21,5 +24,4 @@ const authenticateHR = (req, res, next) => {
     }
   );
 };
-
 module.exports = authenticateHR;

@@ -7,6 +7,15 @@ const axios = require("axios");
 const XLSX = require("xlsx");
 require("dotenv").config();
 
+
+async function getAI(prompt) {
+
+  const res = await axios.post('http://10.0.128.123:8000/generate', { prompt });
+
+  return res.data.response;
+
+}
+
 // Import middleware
 const authenticateAdmin = require("./middlewares/admin.auth");
 const { authenticateEmployee } = require("./middlewares/employee.auth");
@@ -33,15 +42,26 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+  origin: ['https://nexus-poc.forteai.in', 'http://localhost:5173'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// Enable pre-flight with SAME config
+app.options('*', cors(corsOptions));
+
 
 // MySQL connection configuration
 const dbConfig = {
-  host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "fortai_employees",
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -50,8 +70,8 @@ const dbConfig = {
 const TABLE_NAME = "employees"; // unified table name
 
 // Flask configuration from environment
-const FLASK_HOST = process.env.FLASK_HOST || "localhost";
-const FLASK_PORT = process.env.FLASK_PORT || "5000";
+const FLASK_HOST = process.env.FLASK_HOST;
+const FLASK_PORT = process.env.FLASK_PORT;
 console.log("🔧 Debug - FLASK_HOST:", FLASK_HOST, "FLASK_PORT:", FLASK_PORT);
 // Remove any http:// prefix from FLASK_HOST if present to avoid double protocol
 const cleanHost = FLASK_HOST.replace(/^https?:\/\//, '');
@@ -342,7 +362,7 @@ app.delete('/api/hr/employee/:employeesID/responses', authenticateHR, async (req
     if (!employeesID) return res.status(400).json({ success: false, message: 'employeesID required' });
     // Delete all sentiment form responses
     const [respCount] = await pool.execute(
-      'DELETE FROM Responses_Sentiment WHERE employeesID = ?',
+      'DELETE FROM responses_sentiment WHERE employeesID = ?',
       [employeesID]
     );
     // Delete any generated Langchain reports (Attrition strategies)
@@ -416,13 +436,13 @@ app.get("/api/sentiment/test", authenticateEmployee, async (req, res) => {
 
     // Check if tables exist
     const [forms] = await pool.execute(
-      "SELECT COUNT(*) as count FROM Forms_Sentiment"
+      "SELECT COUNT(*) as count FROM forms_sentiment"
     );
     const [master] = await pool.execute(
-      "SELECT COUNT(*) as count FROM MasterQuestions_Sentiment"
+      "SELECT COUNT(*) as count FROM masterquestions_sentiment"
     );
     const [formQuestions] = await pool.execute(
-      "SELECT COUNT(*) as count FROM FormQuestions_Sentiment"
+      "SELECT COUNT(*) as count FROM formquestions_sentiment"
     );
 
     res.json({
@@ -448,9 +468,9 @@ app.get("/api/sentiment/form/:form_id", authenticateEmployee, async (req, res) =
   try {
     const [rows] = await pool.execute(
       `SELECT fq.form_question_id, f.form_name, mq.question_number, mq.question_type, mq.options_questions, mq.helper_text, fq.question_text
-       FROM FormQuestions_Sentiment fq
-       JOIN Forms_Sentiment f ON fq.form_id = f.form_id
-       JOIN MasterQuestions_Sentiment mq ON fq.master_question_id = mq.master_question_id
+       FROM formquestions_sentiment fq
+       JOIN forms_sentiment f ON fq.form_id = f.form_id
+       JOIN masterquestions_sentiment mq ON fq.master_question_id = mq.master_question_id
        WHERE fq.form_id = ?
        ORDER BY mq.question_number`,
       [form_id]
@@ -484,11 +504,11 @@ app.post("/api/sentiment/response", authenticateEmployee, async (req, res) => {
 
     // Only use employeesID column for inserts
     const [colPlain] = await pool.execute(
-      `SHOW COLUMNS FROM Responses_Sentiment LIKE 'employeesID'`
+      `SHOW COLUMNS FROM responses_sentiment LIKE 'employeesID'`
     );
     const hasPlainEmployeesID = colPlain && colPlain.length > 0;
     if (!hasPlainEmployeesID) {
-      console.error("Responses_Sentiment table missing employeesID column");
+      console.error("responses_sentiment table missing employeesID column");
       return res.status(500).json({
         success: false,
         message: "Database schema missing employeesID column",
@@ -503,9 +523,9 @@ app.post("/api/sentiment/response", authenticateEmployee, async (req, res) => {
       hasPlainEmployeesID
     );
 
-    // First, save the responses to Responses_Sentiment table
+    // First, save the responses to responses_sentiment table
     const insertPromises = answers.map((a) => {
-      console.log("Inserting into Responses_Sentiment (employeesID) params:", [
+      console.log("Inserting into responses_sentiment (employeesID) params:", [
         resolvedEmployee,
         resolvedFormId,
         a.form_question_id,
@@ -513,7 +533,7 @@ app.post("/api/sentiment/response", authenticateEmployee, async (req, res) => {
         a.answer_choice || null,
       ]);
       return pool.execute(
-        `INSERT INTO Responses_Sentiment (employeesID, form_id, form_question_id, answer_text, answer_choice) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO responses_sentiment (employeesID, form_id, form_question_id, answer_text, answer_choice) VALUES (?, ?, ?, ?, ?)`,
         [
           resolvedEmployee,
           resolvedFormId,
@@ -650,9 +670,9 @@ async function triggerCompanyAnalysis(companyId) {
             rs.answer_choice,
             mq.question_number,
             fq.question_text
-          FROM Responses_Sentiment rs
-          JOIN FormQuestions_Sentiment fq ON rs.form_question_id = fq.form_question_id
-          JOIN MasterQuestions_Sentiment mq ON fq.master_question_id = mq.master_question_id
+          FROM responses_sentiment rs
+          JOIN formquestions_sentiment fq ON rs.form_question_id = fq.form_question_id
+          JOIN masterquestions_sentiment mq ON fq.master_question_id = mq.master_question_id
           WHERE rs.employeesID = ?
           ORDER BY mq.question_number`,
           [employeeId]
@@ -1297,12 +1317,12 @@ app.get("/api/debug/employees", async (_, res) => {
   }
 });
 
-// Debug endpoint: show Responses_Sentiment schema and sample rows
+// Debug endpoint: show responses_sentiment schema and sample rows
 app.get("/api/debug/responses_table", async (_, res) => {
   try {
-    const [desc] = await pool.execute("DESCRIBE Responses_Sentiment");
+    const [desc] = await pool.execute("DESCRIBE responses_sentiment");
     const [rows] = await pool.execute(
-      "SELECT * FROM Responses_Sentiment LIMIT 10"
+      "SELECT * FROM responses_sentiment LIMIT 10"
     );
     res.json({ success: true, description: desc, sample: rows });
   } catch (err) {
@@ -1312,9 +1332,10 @@ app.get("/api/debug/responses_table", async (_, res) => {
 });
 
 // Start server
+//kindly update with https if needed
 app.listen(PORT, () => {
   console.log(`🚀 ForteAI Server running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`📊 Health check: http://${FLASK_HOST}:${PORT}/api/health`);
   console.log(`🤖 Flask Agent URL: ${FLASK_BASE_URL}`);
 });
 
@@ -1341,3 +1362,4 @@ process.on("uncaughtException", (err) => {
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
+

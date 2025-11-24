@@ -451,6 +451,7 @@ module.exports = (pool, TABLE_NAME, authenticateHR, authenticateToken) => {
       if (hrUser.role !== 'HR')
         return res.status(403).json({ message: 'Access denied' });
       const { employeesID, name, email, role, company, company_id } = req.body;
+
       if (!employeesID)
         return res.status(400).json({ message: 'employeesID required' });
 

@@ -1,11 +1,7 @@
+// HR role authentication middleware
 const jwt = require("jsonwebtoken");
 
-const authenticateAdmin = (req, res, next) => {
-  // Skip authentication for OPTIONS preflight requests
-  if (req.method === 'OPTIONS') {
-    return next();
-  }
-
+const authenticateHR = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) return res.status(401).json({ success: false, message: "Access token required" });
 
@@ -16,8 +12,8 @@ const authenticateAdmin = (req, res, next) => {
       if (err)
         return res.status(403).json({ success: false, message: "Invalid or expired token" });
       
-      if (employee.role !== 'Admin') {
-        return res.status(403).json({ success: false, message: "Admin access required" });
+      if (employee.role !== 'HR' && employee.role !== 'Admin') {
+        return res.status(403).json({ success: false, message: "HR access required" });
       }
       
       req.employee = employee;
@@ -26,4 +22,4 @@ const authenticateAdmin = (req, res, next) => {
   );
 };
 
-module.exports = authenticateAdmin;
+module.exports = authenticateHR;

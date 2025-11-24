@@ -110,8 +110,8 @@ module.exports = (pool) => {
       // Get questions once (reuse for all companies)
       const [questions] = await pool.execute(`
         SELECT mq.question_number, fq.question_text, mq.question_type, mq.options_questions
-        FROM FormQuestions_Sentiment fq
-        JOIN MasterQuestions_Sentiment mq ON fq.master_question_id = mq.master_question_id
+        FROM formquestions_sentiment fq
+        JOIN masterquestions_sentiment mq ON fq.master_question_id = mq.master_question_id
         ORDER BY mq.question_number
       `);
 
@@ -144,8 +144,8 @@ module.exports = (pool) => {
           SELECT rs.employeesID, rs.answer_text, rs.answer_choice, mq.question_number, 
                  mq.question_type, mq.options_questions
           FROM Responses_Sentiment rs
-          JOIN FormQuestions_Sentiment fq ON rs.form_question_id = fq.form_question_id
-          JOIN MasterQuestions_Sentiment mq ON fq.master_question_id = mq.master_question_id
+          JOIN formquestions_sentiment fq ON rs.form_question_id = fq.form_question_id
+          JOIN masterquestions_sentiment mq ON fq.master_question_id = mq.master_question_id
           WHERE rs.employeesID IN (${employeeIds.map(() => '?').join(',')})
           ORDER BY rs.employeesID, mq.question_number
         `, employeeIds);
@@ -483,8 +483,8 @@ module.exports = (pool) => {
       // ===== CSV 1: Employee Responses Matrix (Questions as columns, Employees as rows) =====
       const [questions] = await pool.execute(`
         SELECT mq.question_number, fq.question_text, mq.question_type, mq.options_questions
-        FROM FormQuestions_Sentiment fq
-        JOIN MasterQuestions_Sentiment mq ON fq.master_question_id = mq.master_question_id
+        FROM formquestions_sentiment fq
+        JOIN masterquestions_sentiment mq ON fq.master_question_id = mq.master_question_id
         ORDER BY mq.question_number
       `);
 
@@ -503,8 +503,8 @@ module.exports = (pool) => {
           SELECT rs.form_question_id, rs.answer_text, rs.answer_choice, mq.question_number, 
                  mq.question_type, mq.options_questions
           FROM Responses_Sentiment rs
-          JOIN FormQuestions_Sentiment fq ON rs.form_question_id = fq.form_question_id
-          JOIN MasterQuestions_Sentiment mq ON fq.master_question_id = mq.master_question_id
+          JOIN formquestions_sentiment fq ON rs.form_question_id = fq.form_question_id
+          JOIN masterquestions_sentiment mq ON fq.master_question_id = mq.master_question_id
           WHERE rs.employeesID = ?
           ORDER BY mq.question_number
         `, [emp.employeesID]);
