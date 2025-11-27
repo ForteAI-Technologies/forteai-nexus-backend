@@ -12,258 +12,77 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # Step 1: Checkout code from repository
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      # Step 2: Install required tools
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y sshpass rsync jq
 
-      # Step 3: Prepare temporary directory on bastion server
       - name: Prepare Bastion Directory
         run: |
-          echo "Preparing bastion staging directory..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
-            mkdir -p /tmp/backend-deploy
-            rm -rf /tmp/backend-deploy/*
-            echo 'Bastion directory ready'
-          "
+          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "mkdir -p /tmp/backend-deploy && rm -rf /tmp/backend-deploy/*"
 
-      # Step 4: Copy backend files to bastion
       - name: Copy Backend Files to Bastion
         run: |
-          echo "Copying backend files to bastion..."
-          sshpass -p "forteai@123" rsync -avz \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='*.log' \
-            --exclude='*.backup*' \
-            ./ ec2-user@13.204.190.46:/tmp/backend-deploy/
-          echo "Files copied to bastion"
+          sshpass -p "forteai@123" rsync -avz --exclude='.git' --exclude='node_modules' --exclude='*.log' --exclude='*.backup*' ./ ec2-user@13.204.190.46:/tmp/backend-deploy/
 
-      # Step 5: Create environment file with database and API credentials
       - name: Create Environment File
         run: |
-          echo "Creating .env file on bastion..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 '
-            cat > /tmp/backend.env << "ENVEOF"
-DB_HOST=forte-ai-db.cpowuk2ao66s.ap-south-1.rds.amazonaws.com
-DB_USER=admin
-DB_PASSWORD=8Q1ste85Mhf3
-DB_NAME=forteai_employees
-JWT_SECRET=forteai-super-secure-jwt-secret-key-2025
-PORT=3000
-FLASK_HOST=10.0.135.215
-FLASK_PORT=5000
-EMAIL_USER=forteaitechnologies@gmail.com
-EMAIL_FROM=ForteAI Nexus System <forteaitechnologies@gmail.com>
-EMAIL_APP_PASSWORD=kcfu sxka pgax gxbd
-BACKEND_URL=https://nexus-backend.forteai.in
-ENVEOF
-            echo "Environment file created"
-          '
+          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "echo 'DB_HOST=forte-ai-db.cpowuk2ao66s.ap-south-1.rds.amazonaws.com' > /tmp/backend.env && echo 'DB_USER=admin' >> /tmp/backend.env && echo 'DB_PASSWORD=8Q1ste85Mhf3' >> /tmp/backend.env && echo 'DB_NAME=forteai_employees' >> /tmp/backend.env && echo 'JWT_SECRET=forteai-super-secure-jwt-secret-key-2025' >> /tmp/backend.env && echo 'PORT=3000' >> /tmp/backend.env && echo 'FLASK_HOST=10.0.135.215' >> /tmp/backend.env && echo 'FLASK_PORT=5000' >> /tmp/backend.env && echo 'EMAIL_USER=forteaitechnologies@gmail.com' >> /tmp/backend.env && echo 'EMAIL_FROM=ForteAI Nexus System <forteaitechnologies@gmail.com>' >> /tmp/backend.env && echo 'EMAIL_APP_PASSWORD=kcfu sxka pgax gxbd' >> /tmp/backend.env && echo 'BACKEND_URL=https://nexus-backend.forteai.in' >> /tmp/backend.env"
 
-      # Step 6: Create PM2 configuration file for process management
       - name: Create PM2 Ecosystem File
         run: |
-          echo "Creating PM2 ecosystem config on bastion..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 '
-            cat > /tmp/ecosystem.config.js << "PMEOF"
-module.exports = {
-  apps: [{
-    name: "nexus-backend",
-    script: "./server.js",
-    instances: 1,
-    exec_mode: "fork",
-    autorestart: true,
-    watch: false,
-    max_restarts: 10,
-    min_uptime: "10s",
-    env: {
-      NODE_ENV: "production",
-      PORT: 3000
-    },
-    error_file: "/home/ec2-user/logs/nexus-backend-error.log",
-    out_file: "/home/ec2-user/logs/nexus-backend-out.log",
-    log_date_format: "YYYY-MM-DD HH:mm:ss Z",
-    max_memory_restart: "1G",
-    kill_timeout: 5000,
-    listen_timeout: 3000,
-    wait_ready: true
-  }]
-}
-PMEOF
-            echo "PM2 ecosystem file created"
-          '
+          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "cat > /tmp/ecosystem.config.js << 'EOF'
+          module.exports = {
+            apps: [{
+              name: 'nexus-backend',
+              script: './server.js',
+              instances: 1,
+              exec_mode: 'fork',
+              autorestart: true,
+              watch: false,
+              max_restarts: 10,
+              min_uptime: '10s',
+              env: { NODE_ENV: 'production', PORT: 3000 },
+              error_file: '/home/ec2-user/logs/nexus-backend-error.log',
+              out_file: '/home/ec2-user/logs/nexus-backend-out.log',
+              log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+              max_memory_restart: '1G',
+              kill_timeout: 5000,
+              listen_timeout: 3000,
+              wait_ready: true
+            }]
+          }
+          EOF
+          "
 
-      # Step 7: Backup current backend before deploying new version
       - name: Backup Current Backend
         run: |
-          echo "Creating backup of current backend..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
-            sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
-              if [ -d /home/ec2-user/forteai-nexus-backend ] && [ -n \"\$(ls -A /home/ec2-user/forteai-nexus-backend 2>/dev/null)\" ]; then
-                BACKUP_DIR=\"/home/ec2-user/backend-backups/backup-\$(date +%Y%m%d_%H%M%S)\"
-                mkdir -p \"\$BACKUP_DIR\"
-                cp -r /home/ec2-user/forteai-nexus-backend/* \"\$BACKUP_DIR/\" 2>/dev/null || true
-                echo \"Backup created at: \$BACKUP_DIR\"
-                cd /home/ec2-user/backend-backups 2>/dev/null && ls -t | tail -n +6 | xargs -r rm -rf
-              else
-                echo \"No existing backend to backup\"
-              fi
-            '
-          "
+          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'if [ -d /home/ec2-user/forteai-nexus-backend ]; then BACKUP_DIR=/home/ec2-user/backend-backups/backup-\$(date +%Y%m%d_%H%M%S); mkdir -p \$BACKUP_DIR; cp -r /home/ec2-user/forteai-nexus-backend/* \$BACKUP_DIR/ 2>/dev/null || true; fi'"
 
-      # Step 8: Deploy files from bastion to backend server
       - name: Deploy to Backend Server
         run: |
-          echo "Deploying to backend server..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
-            sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
-              mkdir -p /home/ec2-user/forteai-nexus-backend
-              mkdir -p /home/ec2-user/logs
-            '
-            echo 'Copying files to backend server...'
-            sshpass -p 'forteai@1234' rsync -avz /tmp/backend-deploy/ ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/
-            echo 'Copying environment file...'
-            sshpass -p 'forteai@1234' scp -o StrictHostKeyChecking=no /tmp/backend.env ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/.env
-            echo 'Copying PM2 ecosystem file...'
-            sshpass -p 'forteai@1234' scp -o StrictHostKeyChecking=no /tmp/ecosystem.config.js ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/ecosystem.config.js
-            echo 'All files copied successfully'
-          "
+          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'mkdir -p /home/ec2-user/forteai-nexus-backend && mkdir -p /home/ec2-user/logs' && sshpass -p 'forteai@1234' rsync -avz /tmp/backend-deploy/ ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/ && sshpass -p 'forteai@1234' scp /tmp/backend.env ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/.env && sshpass -p 'forteai@1234' scp /tmp/ecosystem.config.js ec2-user@10.0.157.0:/home/ec2-user/forteai-nexus-backend/ecosystem.config.js"
 
-      # Step 9: Install Node.js dependencies
       - name: Install Dependencies
         run: |
-          echo "Installing Node.js dependencies..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
-            sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
-              cd /home/ec2-user/forteai-nexus-backend
-              if ! command -v node >/dev/null 2>&1; then
-                echo \"Installing Node.js...\"
-                curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
-                sudo yum install -y nodejs
-              fi
-              if ! command -v pm2 >/dev/null 2>&1; then
-                echo \"Installing PM2...\"
-                sudo npm install -g pm2
-              fi
-              echo \"Installing project dependencies...\"
-              npm ci --production || npm install --production
-              echo \"Dependencies installed\"
-            '
-          "
+          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'cd /home/ec2-user/forteai-nexus-backend && if ! command -v node >/dev/null 2>&1; then curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash - && sudo yum install -y nodejs; fi && if ! command -v pm2 >/dev/null 2>&1; then sudo npm install -g pm2; fi && npm install --production'"
 
-      # Step 10: Stop current backend process
       - name: Stop Current Backend
         run: |
-          echo "Stopping current backend process..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
-            sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
-              cd /home/ec2-user/forteai-nexus-backend
-              pm2 stop nexus-backend 2>/dev/null || echo \"No process to stop\"
-              pm2 delete nexus-backend 2>/dev/null || echo \"No process to delete\"
-              sleep 3
-              sudo fuser -k 3000/tcp 2>/dev/null || true
-              if sudo lsof -i :3000 >/dev/null 2>&1; then
-                echo \"Warning: Port 3000 still in use\"
-                sudo lsof -i :3000
-              else
-                echo \"Port 3000 is free\"
-              fi
-            '
-          "
+          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'cd /home/ec2-user/forteai-nexus-backend && pm2 stop nexus-backend 2>/dev/null || true && pm2 delete nexus-backend 2>/dev/null || true && sleep 2 && sudo fuser -k 3000/tcp 2>/dev/null || true'"
 
-      # Step 11: Start backend with PM2 using ecosystem config
       - name: Start Backend with PM2
         run: |
-          echo "Starting backend with PM2..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
-            sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
-              cd /home/ec2-user/forteai-nexus-backend
-              pm2 start ecosystem.config.js
-              sleep 5
-              pm2 save
-              pm2 startup systemd -u ec2-user --hp /home/ec2-user 2>/dev/null || true
-              echo \"Backend started with PM2\"
-            '
-          "
+          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'cd /home/ec2-user/forteai-nexus-backend && pm2 start ecosystem.config.js && sleep 5 && pm2 save'"
 
-      # Step 12: Verify deployment was successful
       - name: Verify Backend Status
         run: |
-          echo "Verifying backend deployment..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
-            sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
-              echo \"Checking PM2 status...\"
-              PM2_STATUS=\$(pm2 jlist 2>/dev/null | jq -r \".[0].pm2_env.status\" 2>/dev/null || echo \"not_found\")
-              if [ \"\$PM2_STATUS\" = \"online\" ]; then
-                echo \"PM2 status: online\"
-                pm2 list
-              else
-                echo \"PM2 status: \$PM2_STATUS\"
-                pm2 logs nexus-backend --lines 20 --nostream
-                exit 1
-              fi
-              echo \"Checking port 3000...\"
-              if sudo lsof -i :3000 >/dev/null 2>&1; then
-                echo \"Port 3000 is listening\"
-              else
-                echo \"Port 3000 NOT listening\"
-                exit 1
-              fi
-              echo \"Checking environment variables...\"
-              if grep -q \"FLASK_HOST=10.0.135.215\" .env; then
-                echo \"AI Server IP correct\"
-              else
-                echo \"Warning: AI Server IP may be incorrect\"
-              fi
-              sleep 3
-              HTTP_CODE=\$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/health 2>/dev/null || echo \"000\")
-              if [ \"\$HTTP_CODE\" = \"200\" ]; then
-                echo \"Health check passed: HTTP \$HTTP_CODE\"
-              else
-                echo \"Health check status: HTTP \$HTTP_CODE\"
-              fi
-              echo \"Backend deployment verified\"
-            '
-          "
+          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'pm2 list && sleep 3 && curl -s http://localhost:3000/api/health || echo Failed'"
 
-      # Step 13: Test production URL
-      - name: Test Production URL
-        run: |
-          echo "Testing production backend URL..."
-          sleep 5
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://nexus-backend.forteai.in/api/health 2>/dev/null || echo "000")
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "Production backend responding: HTTP $HTTP_CODE"
-          else
-            echo "Production backend status: HTTP $HTTP_CODE"
-          fi
-
-      # Step 14: Show logs if deployment failed
-      - name: Display Logs on Failure
-        if: failure()
-        run: |
-          echo "Deployment failed! Fetching logs..."
-          sshpass -p "forteai@123" ssh -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
-            sshpass -p 'forteai@1234' ssh -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
-              cd /home/ec2-user/forteai-nexus-backend
-              pm2 logs nexus-backend --lines 50 --nostream || true
-              pm2 list || true
-            '
-          "
-
-      # Step 15: Display deployment summary
       - name: Deployment Summary
         if: always()
         run: |
-          echo "Backend Deployment Summary"
-          echo "Deployment Time: $(date)"
-          echo "Backend URL: https://nexus-backend.forteai.in"
-          echo "AI Server: 10.0.135.215:5000"
-          echo "Database: forte-ai-db.cpowuk2ao66s.ap-south-1.rds.amazonaws.com"
-          echo "Deployment completed"
+          echo "Backend deployed to https://nexus-backend.forteai.in"
