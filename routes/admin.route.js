@@ -143,7 +143,7 @@ module.exports = (pool) => {
         const [allResponses] = await pool.execute(`
           SELECT rs.employeesID, rs.answer_text, rs.answer_choice, mq.question_number, 
                  mq.question_type, mq.options_questions
-          FROM Responses_Sentiment rs
+          FROM responses_sentiment rs
           JOIN formquestions_sentiment fq ON rs.form_question_id = fq.form_question_id
           JOIN masterquestions_sentiment mq ON fq.master_question_id = mq.master_question_id
           WHERE rs.employeesID IN (${employeeIds.map(() => '?').join(',')})
@@ -502,7 +502,7 @@ module.exports = (pool) => {
         const [responses] = await pool.execute(`
           SELECT rs.form_question_id, rs.answer_text, rs.answer_choice, mq.question_number, 
                  mq.question_type, mq.options_questions
-          FROM Responses_Sentiment rs
+          FROM responses_sentiment rs
           JOIN formquestions_sentiment fq ON rs.form_question_id = fq.form_question_id
           JOIN masterquestions_sentiment mq ON fq.master_question_id = mq.master_question_id
           WHERE rs.employeesID = ?
@@ -719,7 +719,7 @@ module.exports = (pool) => {
 
       // Delete from Responses_Sentiment
       const [respResult] = await connection.execute(
-        `DELETE FROM Responses_Sentiment WHERE employeesID IN (${employeeIds.map(() => '?').join(',')})`,
+        `DELETE FROM responses_sentiment WHERE employeesID IN (${employeeIds.map(() => '?').join(',')})`,
         employeeIds
       );
 
