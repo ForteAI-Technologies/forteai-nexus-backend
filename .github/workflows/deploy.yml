@@ -128,33 +128,16 @@ jobs:
             ssh -i ~/.ssh/backend_deploy_key -o StrictHostKeyChecking=no ec2-user@10.0.157.0 'cd /home/ec2-user/forteai-nexus-backend && npm install'
           "
 
-      # Step 11: ENHANCED - Stop current backend process and aggressively free port 3000
-      - name: Stop Current Backend and Kill All Processes
+      # Step 11: Stop current backend process and free port 3000
+      - name: Stop Current Backend
         run: |
           ssh -i ~/.ssh/cicd_key -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
             ssh -i ~/.ssh/backend_deploy_key -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
-              echo \"🛑 Stopping PM2 processes...\"
               pm2 stop nexus-backend 2>/dev/null || true
               pm2 delete nexus-backend 2>/dev/null || true
               sleep 2
-              
-              echo \"🔪 Killing all processes on port 3000 (including root processes)...\"
-              sudo fuser -k -9 3000/tcp 2>/dev/null || true
-              
-              echo \"🧹 Killing any orphaned node processes running server.js...\"
-              sudo pkill -9 -f \"forteai-nexus-backend/server.js\" 2>/dev/null || true
-              
-              sleep 3
-              
-              echo \"✅ Verifying port 3000 is completely free...\"
-              if sudo lsof -i :3000 >/dev/null 2>&1; then
-                echo \"❌ ERROR: Port 3000 still in use after cleanup!\"
-                echo \"Processes still using port 3000:\"
-                sudo lsof -i :3000
-                exit 1
-              else
-                echo \"✅ Port 3000 is free and ready for deployment\"
-              fi
+              sudo fuser -k 3000/tcp 2>/dev/null || true
+              sleep 2
             '
           "
 
@@ -170,41 +153,41 @@ jobs:
         run: |
           ssh -i ~/.ssh/cicd_key -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
             ssh -i ~/.ssh/backend_deploy_key -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
-              echo \"🔍 Checking PM2 process status...\"
+              echo \" Checking PM2 process status...\"
               PM2_STATUS=\$(pm2 jlist 2>/dev/null | jq -r \".[0].pm2_env.status\" 2>/dev/null || echo \"not_found\")
               if [ \"\$PM2_STATUS\" != \"online\" ]; then
-                echo \"❌ ERROR: PM2 process not in online status. Current status: \$PM2_STATUS\"
+                echo \" ERROR: PM2 process not in online status. Current status: \$PM2_STATUS\"
                 echo \"Recent logs:\"
                 pm2 logs nexus-backend --lines 30 --nostream
                 exit 1
               fi
-              echo \"✅ PM2 process is online\"
+              echo \" PM2 process is online\"
               
-              echo \"🔍 Checking if port 3000 is listening...\"
+              echo \" Checking if port 3000 is listening...\"
               if ! sudo lsof -i :3000 >/dev/null 2>&1; then
-                echo \"❌ ERROR: Port 3000 is not listening\"
+                echo \" ERROR: Port 3000 is not listening\"
                 echo \"PM2 process list:\"
                 pm2 list
                 exit 1
               fi
-              echo \"✅ Port 3000 is listening\"
+              echo \" Port 3000 is listening\"
               
               sleep 3
               
-              echo \"🔍 Running health check...\"
+              echo \" Running health check...\"
               HTTP_CODE=\$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/health 2>/dev/null || echo \"000\")
               if [ \"\$HTTP_CODE\" != \"200\" ]; then
-                echo \"❌ ERROR: Health check failed with HTTP code: \$HTTP_CODE\"
+                echo \" ERROR: Health check failed with HTTP code: \$HTTP_CODE\"
                 echo \"Recent logs:\"
                 pm2 logs nexus-backend --lines 30 --nostream
                 exit 1
               fi
-              echo \"✅ Health check passed (HTTP 200)\"
+              echo \" Health check passed (HTTP 200)\"
               
               echo \"\"
-              echo \"✅ ========================================\"
-              echo \"✅  DEPLOYMENT VERIFIED SUCCESSFULLY\"
-              echo \"✅ ========================================\"
+              echo \" ========================================\"
+              echo \"  DEPLOYMENT VERIFIED SUCCESSFULLY\"
+              echo \" ========================================\"
               echo \"\"
               pm2 list
             '
@@ -217,16 +200,16 @@ jobs:
           ssh -i ~/.ssh/cicd_key -o StrictHostKeyChecking=no ec2-user@13.204.190.46 "
             ssh -i ~/.ssh/backend_deploy_key -o StrictHostKeyChecking=no ec2-user@10.0.157.0 '
               echo \"\"
-              echo \"🔄 ======================================\"
-              echo \"🔄  DEPLOYMENT FAILED - INITIATING ROLLBACK\"
-              echo \"🔄 ======================================\"
+              echo \" ======================================\"
+              echo \"  DEPLOYMENT FAILED - INITIATING ROLLBACK\"
+              echo \" ======================================\"
               echo \"\"
               
               LATEST_BACKUP=\$(ls -t /home/ec2-user/backend-backups/ 2>/dev/null | head -1)
               
               if [ -n \"\$LATEST_BACKUP\" ]; then
-                echo \"📦 Found backup: \$LATEST_BACKUP\"
-                echo \"🔄 Restoring from backup...\"
+                echo \" Found backup: \$LATEST_BACKUP\"
+                echo \" Restoring from backup...\"
                 
                 pm2 stop nexus-backend 2>/dev/null || true
                 pm2 delete nexus-backend 2>/dev/null || true
@@ -242,12 +225,12 @@ jobs:
                 pm2 save
                 
                 echo \"\"
-                echo \"✅ Rollback completed successfully\"
-                echo \"📊 Current process status:\"
+                echo \" Rollback completed successfully\"
+                echo \" Current process status:\"
                 pm2 list
               else
-                echo \"❌ ERROR: No backup found for rollback!\"
-                echo \"⚠️  Manual intervention required\"
+                echo \" ERROR: No backup found for rollback!\"
+                echo \"  Manual intervention required\"
                 exit 1
               fi
             '
