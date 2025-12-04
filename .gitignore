@@ -15,3 +15,5 @@ Agents/**/venv/
 Agents/**/vector_store/
 Agents/**/outputs/
 *.backup*
+*.log
+logs/
