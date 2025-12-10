@@ -43,7 +43,7 @@ const PORT = process.env.PORT || 3002;
 
 // Middleware
 const corsOptions = {
-  origin: ['https://nexus-poc.forteai.in', 'http://localhost:5173'],
+  origin: ['https://nexus.forteai.in', 'http://localhost:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
