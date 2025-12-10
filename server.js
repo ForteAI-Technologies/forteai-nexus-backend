@@ -81,7 +81,7 @@ const FLASK_BASE_URL = cleanHost.includes(':')
   ? `http://${cleanHost}`
   : `http://${cleanHost}:${FLASK_PORT}`;
 console.log("🔧 Debug - Final FLASK_BASE_URL:", FLASK_BASE_URL);
-const FLASK_TIMEOUT = parseInt(process.env.FLASK_TIMEOUT) || 180000; // 3 minutes for AI processing
+const FLASK_TIMEOUT = parseInt(process.env.FLASK_TIMEOUT) || 600000; // 3 minutes for AI processing
 
 // Create connection pool
 const pool = mysql.createPool(dbConfig);
